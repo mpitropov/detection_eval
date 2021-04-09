@@ -22,10 +22,10 @@ class BoxInfo():
         if name == 'box_list' or name == 'idx':
             raise AttributeError
         attr = getattr(self.box_list, name, None)
-        if isinstance(attr, np.ndarray):
+        if isinstance(attr, (list, np.ndarray)):
             return attr[self.idx]
         attr = getattr(self.box_list, name+'s', None)
-        if isinstance(attr, np.ndarray):
+        if isinstance(attr, (list, np.ndarray)):
             return attr[self.idx]
         raise AttributeError
         
@@ -34,11 +34,11 @@ class BoxInfo():
             super().__setattr__(name, value)
             return
         attr = getattr(self.box_list, name, None)
-        if isinstance(attr, np.ndarray):
+        if isinstance(attr, (list, np.ndarray)):
             attr[self.idx] = value
             return
         attr = getattr(self.box_list, name+'s', None)
-        if isinstance(attr, np.ndarray):
+        if isinstance(attr, (list, np.ndarray)):
             attr[self.idx] = value
             return
     
