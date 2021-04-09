@@ -42,13 +42,13 @@ class DetectionFilter():
         )
 
     def get_ignored_gt(self, gt):
-        raise None
+        return None
 
     def get_discarded_gt(self, gt):
-        raise None
+        return None
 
     def get_discarded_pred(self, pred):
-        raise None
+        return None
 
 
 class ClassFilter(DetectionFilter):
@@ -58,10 +58,18 @@ class ClassFilter(DetectionFilter):
 
     def get_discarded_gt(self, gt):
         labels, boxes = gt
+        if isinstance(labels, (list, tuple, np.ndarray)):
+            labels = np.array(labels)
+        else:
+            raise TypeError(f'Unknown type `{type(labels)}` for labels, expected list, tuple, or np.ndarray.')
         return labels != self.label
 
     def get_discarded_pred(self, pred):
         labels, scores, boxes = pred
+        if isinstance(labels, (list, tuple, np.ndarray)):
+            labels = np.array(labels)
+        else:
+            raise TypeError(f'Unknown type `{type(labels)}` for labels, expected list, tuple, or np.ndarray.')
         return labels != self.label
 
 def build_class_filters(names, labels, gt_processor, pred_processor):
@@ -81,12 +89,6 @@ class RangeFilter(DetectionFilter):
     def get_ignored_gt(self, gt):
         ignore_mask = np.isnan(gt)
         ret = (gt < self.range[0]) | (gt > self.range[1])
-        ret[ignore_mask] = False
-        return ret
-
-    def get_discarded_pred(self, pred):
-        ignore_mask = np.isnan(pred)
-        ret = (pred < self.range[0]) | (pred > self.range[1])
         ret[ignore_mask] = False
         return ret
 
