@@ -1,4 +1,5 @@
 import warnings
+from itertools import compress
 import numpy as np
 
 __all__ = ['BoxInfo', 'BoxList', 'combine_box_lists']
@@ -142,7 +143,10 @@ class BoxList():
                 if isinstance(attr, np.ndarray) or isinstance(idx, slice):
                     new_attr = attr[idx]
                 elif hasattr(attr, '__getitem__'):
-                    new_attr = [attr[i] for i in idx]
+                    if is_binary:
+                        new_attr = list(compress(attr, idx))
+                    else:
+                        new_attr = [attr[i] for i in idx]
                 else:
                     raise TypeError(f'The attribute `{attr_name}` is corrupted.')
                 setattr(ret, attr_name, new_attr)
