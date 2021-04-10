@@ -1,6 +1,6 @@
 import numpy as np
 
-__all__ = ['box_iou_rotated_3d']
+__all__ = ['box_iou_rotated', 'box_iou_rotated_3d']
 
 def box_iou_rotated_numba(boxes1, boxes2, mode='iou'):
     from .box_iou_rotated_numba import rotate_iou_gpu_eval
@@ -15,7 +15,7 @@ def box_iou_rotated_torch(boxes1, boxes2, mode='iou'):
         boxes2 = torch.from_numpy(boxes2).float().cuda()
     return box_iou_rotated(boxes1, boxes2, mode=mode)
 
-def box_iou_rotated(boxes1, boxes2, mode='iou', version='numba'):
+def box_iou_rotated(boxes1, boxes2, mode='iou', version='torch'):
     if version == 'numba':
         return box_iou_rotated_numba(boxes1, boxes2, mode=mode)
     if version == 'torch':
@@ -78,7 +78,7 @@ def box_iou_rotated_3d_new(boxes1, boxes2, mode='iou', z_axis=2, z_center=0.0, v
     iou_3d = iou_3d.reshape((n_boxes1, n_boxes2))
     return iou_3d
 
-def box_iou_rotated_3d(boxes1, boxes2, mode='iou', z_axis=2, z_center=0.0, version='numba'):
+def box_iou_rotated_3d(boxes1, boxes2, mode='iou', z_axis=2, z_center=0.0, version='torch'):
     if version == 'numba':
         return box_iou_rotated_3d_numba(boxes1, boxes2, mode=mode)
     if version == 'torch':
