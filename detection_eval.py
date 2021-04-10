@@ -83,11 +83,11 @@ class DetectionEval(Metric):
         Returns:
             np.ndarray: [N_a, N_b] matrix where each entry corresponds to a maching value
         """
-        if boxes1.shape[1] != boxes2.shape[1]:
-            raise ValueError('Boxe size mismatch')
-        
         if boxes1.shape[0] == 0 or boxes2.shape[0] == 0:
             return np.zeros((boxes1.shape[0], boxes2.shape[0]))
+
+        if boxes1.shape[1] != boxes2.shape[1]:
+            raise ValueError('Boxe size mismatch')
 
         if criterion in ['iou', 'iou_2d', 'iou_bev', 'iof', 'iof_2d', 'iof_bev']:
             from .box_iou_rotated import box_iou_rotated
