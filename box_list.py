@@ -96,6 +96,26 @@ class BoxList():
     def pair_with(self, paired_list):
         self.paired_list = paired_list
         paired_list.paired_list = self
+    
+    @property
+    def valid(self):
+        return ~self.ignored
+    
+    @property
+    def localised(self):
+        return self.localized
+    
+    @property
+    def mislocalized(self):
+        return ~self.localized
+
+    @property
+    def mislocalised(self):
+        return ~self.localized
+    
+    @property
+    def misclassified(self):
+        return ~self.classified
 
     def __add__(self, other):
         ret = BoxList(self.n_boxes + other.n_boxes)
