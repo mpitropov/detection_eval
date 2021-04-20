@@ -196,7 +196,7 @@ def combine_box_lists(box_lists):
             
             if attr_name == 'matched_idx':
                 if box_list.paired_list is not None:
-                    box_attr += matched_idx_pointer
+                    box_attr = box_attr + matched_idx_pointer
                 else:
                     warnings.warn('No paired BoxList defined, thus `matched_idx` cannot be properly combined.')
 
