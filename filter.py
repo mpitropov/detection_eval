@@ -2,7 +2,8 @@ import pickle
 import numpy as np
 
 __all__ = [
-    'DetectionFilter', 'ClassFilter', 'RangeFilter', 'CombinedFilter',
+    'DetectionFilter', 'ClassFilter', 'RangeFilter',
+    'CombinedFilter', 'build_class_filters',
     'KITTIFilter', 'build_kitti_filters'
 ]
 
@@ -94,9 +95,12 @@ class RangeFilter(DetectionFilter):
 
 
 class CombinedFilter(DetectionFilter):
-    def __init__(self, filters, *args, **kwargs):
+    def __init__(self, filters, mode='and', *args, **kwargs):
         super().__init__(name='_'.join([f.name for f in filters]), *args, **kwargs)
         self.filters = filters
+        if not isinstance(mode, str) or mode.lower() not in ['and', 'or']:
+            raise ValueError(f'Invalid mode {mode}')
+        self.mode = mode.lower()
 
     def get_ignored_gt(self, gt):
         ret = None
@@ -105,7 +109,12 @@ class CombinedFilter(DetectionFilter):
             mask = f.get_ignored_gt(gt_proc)
             if mask is None:
                 continue
-            ret = mask if ret is None else (ret | mask)
+            if self.mode == 'and':
+                ret = mask if ret is None else (ret | mask)
+            elif self.mode == 'or':
+                ret = mask if ret is None else (ret & mask)
+            else:
+                raise ValueError(f'Invalid mode {mode}')
         return ret
     
     def get_discarded_gt(self, gt):
@@ -115,7 +124,12 @@ class CombinedFilter(DetectionFilter):
             mask = f.get_discarded_gt(gt_proc)
             if mask is None:
                 continue
-            ret = mask if ret is None else (ret | mask)
+            if self.mode == 'and':
+                ret = mask if ret is None else (ret | mask)
+            elif self.mode == 'or':
+                ret = mask if ret is None else (ret & mask)
+            else:
+                raise ValueError(f'Invalid mode {mode}')
         return ret
     
     def get_discarded_pred(self, pred):
@@ -125,7 +139,12 @@ class CombinedFilter(DetectionFilter):
             mask = f.get_discarded_pred(pred_proc)
             if mask is None:
                 continue
-            ret = mask if ret is None else (ret | mask)
+            if self.mode == 'and':
+                ret = mask if ret is None else (ret | mask)
+            elif self.mode == 'or':
+                ret = mask if ret is None else (ret & mask)
+            else:
+                raise ValueError(f'Invalid mode {mode}')
         return ret
 
 
