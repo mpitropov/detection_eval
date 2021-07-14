@@ -172,8 +172,8 @@ class DetectionEval(Metric):
         if ctable is None:
             ctable = cls.compute_ctable(gt_boxes, pred_boxes, criterion)
 
-        gt_list = BoxList(len(gt_labels))
-        pred_list = BoxList(len(pred_labels))
+        gt_list = BoxList(len(gt_labels), label_dtype=gt_labels[0].dtype)
+        pred_list = BoxList(len(pred_labels), label_dtype=pred_labels[0].dtype)
         gt_list.pair_with(pred_list)
         
         ################################################################################ 
@@ -185,9 +185,6 @@ class DetectionEval(Metric):
             gt_info = gt_list[gt_idx]
             gt_info.gt_label = gt_label
 
-            if gt_label < 0:
-                gt_info.ignored = True
-                continue
             if discarded_gt is not None and discarded_gt[gt_idx]:
                 gt_info.ignored = True
                 continue
@@ -287,7 +284,7 @@ class DetectionEval(Metric):
                 pred_info.loc_score = best_match_ac
                 if not pred_info.bg:
                     gt_label = gt_labels[best_gt_idx_ac]
-                    pred_info.localized = better(best_match_ac, thresholds[pred_label if gt_label < 0 else gt_label])
+                    pred_info.localized = better(best_match_ac, thresholds[gt_label])
                     pred_info.classified = gt_label == pred_label 
                     pred_info.gt_label = gt_label
                     if pred_info.localized and ignored_gt is not None and ignored_gt[best_gt_idx_ac]:

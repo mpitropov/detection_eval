@@ -50,8 +50,9 @@ class BoxInfo():
 
 
 class BoxList():
-    def __init__(self, n_boxes=0):
+    def __init__(self, n_boxes=0, label_dtype=int):
         self.n_boxes = n_boxes
+        self.label_dtype = label_dtype
 
         self.ignored = np.zeros(n_boxes, dtype=bool)
 
@@ -69,8 +70,8 @@ class BoxList():
         #   * Correctly classified
         #   * Misclassified
         self.classified = np.zeros(n_boxes, dtype=bool)
-        self.gt_labels = np.full(n_boxes, -1, dtype=int)
-        self.pred_labels = np.full(n_boxes, -1, dtype=int)
+        self.gt_labels = np.empty(n_boxes, dtype=label_dtype)
+        self.pred_labels = np.empty(n_boxes, dtype=label_dtype)
         self.pred_scores = np.full(n_boxes, np.nan, dtype=float)
 
         # If a box is TP, then matched_idx will provide the index of the matching boxes
@@ -181,29 +182,31 @@ def combine_box_lists(box_lists):
     n_boxes = 0
     for box_list in box_lists:
         n_boxes += len(box_list)
+    
+    if n_boxes == 0:
+        return BoxList(n_boxes)
 
     pointer = 0
     matched_idx_pointer = 0
-    ret = BoxList(n_boxes)
+    ret = BoxList(n_boxes, label_dtype=box_lists[0].label_dtype)
     for box_list in box_lists:
-        if len(box_list) == 0:
-            continue
-        for attr_name in BoxList.keys():
-            ret_attr = getattr(ret, attr_name)
-            box_attr = getattr(box_list, attr_name)
-            if type(ret_attr) != type(box_attr):
-                raise TypeError(f'Type mismatch for attribute `{attr_name}`. Expected `{type(ret_attr)}`, got `{type(box_attr)}`')
-            
-            if attr_name == 'matched_idx':
-                if box_list.paired_list is not None:
-                    box_attr = box_attr + matched_idx_pointer
-                else:
-                    warnings.warn('No paired BoxList defined, thus `matched_idx` cannot be properly combined.')
+        if len(box_list) != 0:
+            for attr_name in BoxList.keys():
+                ret_attr = getattr(ret, attr_name)
+                box_attr = getattr(box_list, attr_name)
+                if type(ret_attr) != type(box_attr):
+                    raise TypeError(f'Type mismatch for attribute `{attr_name}`. Expected `{type(ret_attr)}`, got `{type(box_attr)}`')
+                
+                if attr_name == 'matched_idx':
+                    if box_list.paired_list is not None:
+                        box_attr = box_attr + matched_idx_pointer
+                    else:
+                        warnings.warn('No paired BoxList defined, thus `matched_idx` cannot be properly combined.')
 
-            if isinstance(box_attr, (list, np.ndarray)):
-                ret_attr[pointer:pointer+len(box_list)] = box_attr
-            else:
-                raise TypeError(f'The attribute `{attr_name}` is corrupted.')
+                if isinstance(box_attr, (list, np.ndarray)):
+                    ret_attr[pointer:pointer+len(box_list)] = box_attr
+                else:
+                    raise TypeError(f'The attribute `{attr_name}` is corrupted.')
 
         pointer += len(box_list)
         matched_idx_pointer += len(box_list.paired_list)
