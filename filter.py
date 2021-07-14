@@ -150,119 +150,100 @@ class CombinedFilter(DetectionFilter):
 
 class KITTIFilter(DetectionFilter):
     DIFFICULTY = ['easy', 'moderate', 'hard']
-    MIN_HEIGHT = [40, 25, 25]
-    MAX_OCCLUSION = [0, 1, 2]
-    MAX_TRUNCATION = [0.15, 0.3, 0.5]
 
-    def __init__(self, class_name='car', class_label=1, difficulty='moderate', infos=None, info_path=None, *args, **kwargs):
-        """ Detection filter for KITTI dataset.
-        Results will be filtered by class and difficulty levels
+    def __init__(self, class_name='Car', difficulty='moderate', *args, **kwargs):
+        """KITTI evaluation filter
+
+        Args:
+            class_name (str, optional): class name. Defaults to 'Car'.
+            difficulty (str, optional): difficulty level. Defaults to 'moderate'.
+            gt_processor (callable, optional): takes in an object and returns a tuple of (class names, bounding boxes, occlusion, truncation)
+
+        Raises:
+            ValueError: when invalid difficulty is provided
         """
+
         if type(difficulty) is int and 0 <= difficulty < 3:
             pass
         elif type(difficulty) is str:
             difficulty = self.DIFFICULTY.index(difficulty)
         else:
             raise ValueError(f'invalid KITTI difficulty level: {difficulty}')
-
-        class_name = class_name.lower()
-        name = f'kitti_{class_name}_{self.DIFFICULTY[difficulty]}'
-        super().__init__(name, *args, **kwargs)
-        
-        self.class_name = class_name
-        self.class_label = class_label
         self.difficulty = difficulty
 
-        if (infos is None and info_path is None) or (infos is not None and info_path is not None):
-            raise ValueError('must provide either infos or info_path')
-        elif infos is not None:        
-            self.infos = infos
-        else:
-            self.infos = self.build_kitti_infos(info_path)
-    
-    @staticmethod
-    def build_kitti_infos(info_path):
-        with open(info_path, 'rb') as f:
-            raw_infos = pickle.load(f)
-        
-        # Build metadata database for annotations
-        # This will be used to calculate difficulty levels later
-        kitti_infos = {}
-        for info in raw_infos:
-            frame_id = info['point_cloud']['lidar_idx']
-            kitti_infos[frame_id] = []
-            annos = info['annos']
-            names = annos['name']
-            boxes = annos['gt_boxes_lidar']
-            occluded = annos['occluded']
-            truncated = annos['truncated']
-            bboxes = annos['bbox']
-            heights = bboxes[:,3] - bboxes[:,1]
-            num_points = annos['num_points_in_gt']
-            bbox_occlusion = annos['occlusion_level'] if 'occlusion_level' in annos else np.full(len(names), np.nan)
-            for name, box, o, t, h, n, bo in zip(names, boxes, occluded, truncated, heights, num_points, bbox_occlusion):
-                kitti_infos[frame_id].append({
-                    'name': name,
-                    'loc': box[:2],
-                    'occluded': o,
-                    'truncated': t,
-                    'height': h,
-                    'num_points_in_gt': n,
-                    'bbox_occlusion': bo
-                })
-        return kitti_infos
+        self.class_name = class_name
+        class_name = class_name.lower()
+        name = f'kitti_{class_name}_{self.DIFFICULTY[difficulty]}'
 
+        super().__init__(name, *args, **kwargs)
+
+    MIN_HEIGHT = [40, 25, 25]
+    MAX_OCCLUSION = [0, 1, 2]
+    MAX_TRUNCATION = [0.15, 0.3, 0.5]
     @classmethod
-    def check_difficulty(cls, difficulty, occluded, truncated, height):
-        return (occluded <= cls.MAX_OCCLUSION[difficulty] and
-                truncated <= cls.MAX_TRUNCATION[difficulty] and
-                height > cls.MIN_HEIGHT[difficulty])
+    def check_difficulty(cls, difficulty, box_height, occlusion, truncation):
+        """Check if a set of (box height, occlusion, truncation) is of a particular difficulty level
+        * Easy:     Min. bounding box height: 40 Px,
+                    Max. occlusion level: Fully visible,
+                    Max. truncation: 15 %
+        * Moderate: Min. bounding box height: 25 Px,
+                    Max. occlusion level: Partly occluded,
+                    Max. truncation: 30 %
+        * Hard:     Min. bounding box height: 25 Px,
+                    Max. occlusion level: Difficult to see,
+                    Max. truncation: 50 % 
+
+        Args:
+            difficulty (int): 0: easy, 1: moderate, 2: hard
+            box_height (float, np.ndarray): bounding box height
+            occlusion (int, np.ndarray): occlusion level
+            truncation (float, np.ndarray): truncation
+
+        Returns:
+            bool:
+        """
+        if isinstance(box_height, np.ndarray) and isinstance(occlusion, np.ndarray) and isinstance(truncation, np.ndarray):
+            return  (box_height > cls.MIN_HEIGHT[difficulty]) & \
+                    (occlusion <= cls.MAX_OCCLUSION[difficulty]) & \
+                    (truncation <= cls.MAX_TRUNCATION[difficulty])
+        return (box_height > cls.MIN_HEIGHT[difficulty] and
+                occlusion <= cls.MAX_OCCLUSION[difficulty] and
+                truncation <= cls.MAX_TRUNCATION[difficulty])
 
     def get_ignored_gt(self, gt):
         # Ignored boxes will not be counted towards FP if detected or FN if not detected
-        frame_id = gt['frame_id']
-        names = gt['gt_names']
+        names, bboxes, occlusions, truncations = gt
+        current_difficulty = self.check_difficulty( self.difficulty, bboxes[:,3]-bboxes[:,1], occlusions, truncations )
 
         ignored = np.zeros(len(names), dtype=bool)
         for idx, name in enumerate(names):
-            name = name.lower()
-            if name == 'dontcare':
+            # Three cases:
+            # * same class but different difficulty level
+            # * detecting person_sitting as pedestrian
+            # * detection van as car
+            if ( self.class_name == name and not current_difficulty[idx] ) or \
+               ( self.class_name == 'Pedestrian' and name == 'Person_sitting' ) or \
+               ( self.class_name == 'Car' and name == 'Van' ):
                 ignored[idx] = True
-                continue
-            annos = self.infos[frame_id][idx]
-            # Ignore similar classes
-            if self.class_name == 'pedestrian' and name == 'person_sitting':
-                ignored[idx] = True
-            elif self.class_name == 'car' and name == 'van':
-                ignored[idx] = True
-            # If label is a different class, don't ignore
-            elif self.class_name != name:
-                ignored[idx] = False
-            # Ignore same class but different difficulty
-            elif not self.check_difficulty(self.difficulty, annos['occluded'], annos['truncated'], annos['height']):
-                ignored[idx] = True
-            else:
-                ignored[idx] = False
         return ignored
-    
+
     def get_discarded_gt(self, gt):
         # Discarded boxes will not be counted towards FN if not detected,
         # but will be counted as FP if detected
-        labels = gt['gt_labels']
-        return (labels != self.class_label)
+        labels = gt[0]
+        return labels != self.class_name
 
     def get_discarded_pred(self, pred):
         # Discarded prediction will not be regarded as positive
         # i.e. will not be counted as either TP or FP
-        class_names = ['Car', 'Pedestrian', 'Cyclist']
-        labels = np.array([class_names.index(n)+1 for n in pred['name']])
-        return labels != self.class_label
+        labels = pred[0]
+        return labels != self.class_name
 
 
-def build_kitti_filters(info_path, class_names=['Car', 'Pedestrian', 'Cyclist'], class_labels=[1, 2, 3], difficulty_levels=['easy', 'moderate', 'hard'], *args, **kwargs):
-    kitti_infos = KITTIFilter.build_kitti_infos(info_path)
+def build_kitti_filters(class_names=['Car', 'Pedestrian', 'Cyclist'], 
+                        difficulty_levels=['easy', 'moderate', 'hard'], *args, **kwargs):
     filters = []
-    for name, label in zip(class_names, class_labels):
+    for name in class_names:
         for difficulty in difficulty_levels:
-            filters.append( KITTIFilter(name, label, difficulty, kitti_infos, *args, **kwargs) )
+            filters.append( KITTIFilter(name, difficulty, *args, **kwargs) )
     return filters
