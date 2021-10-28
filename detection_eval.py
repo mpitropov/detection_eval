@@ -278,7 +278,9 @@ class DetectionEval(Metric):
                     pred_info.ignored = True
                 if not pred_info.ignored and pred_info.matched_idx != best_gt_idx_sc:
                     import warnings
-                    warnings.warn('Something is wrong with evaluation')
+                    # warnings.warn('Something is wrong with evaluation')
+                    warnings.warn('Duplicates found in evaluation')
+                    pred_info.duplicated = True
                 pred_info.matched_idx = best_gt_idx_sc
             else:
                 # Not TP, check bounding boxes for all classes
@@ -287,7 +289,9 @@ class DetectionEval(Metric):
                 if not pred_info.bg:
                     gt_label = gt_labels[best_gt_idx_ac]
                     pred_info.localized = better(best_match_ac, thresholds[gt_label])
-                    pred_info.classified = gt_label == pred_label 
+                    pred_info.classified = gt_label == pred_label
+                    # Add matched idx
+                    pred_info.matched_idx = best_gt_idx_ac
                     pred_info.gt_label = gt_label
                     if pred_info.localized and ignored_gt is not None and ignored_gt[best_gt_idx_ac]:
                         pred_info.ignored = True
@@ -410,6 +414,16 @@ class DetectionEval(Metric):
         rec_interp = np.linspace(0, 1, n_positions+1)
         prec_interp = np.interp(rec_interp, rec, prec, right=0)
 
+        # F1 Score
+        f1_score = 2 * (prec * rec) / (prec + rec)
+        if np.isnan(f1_score).all():
+            max_f1_score = np.NAN
+            max_f1_score_threshold = np.NAN
+        else:
+            max_f1_score_idx = int(np.nanargmax(f1_score))
+            max_f1_score = f1_score[max_f1_score_idx].round(2)
+            max_f1_score_threshold = pred_list[max_f1_score_idx].pred_scores.round(2)
+
         prob_fn = fn_count / gt_count
 
         sigma_99 = 2.58 * np.sqrt( ( prob_fn * (1-prob_fn) ) / gt_count )
@@ -420,6 +434,7 @@ class DetectionEval(Metric):
             'prec': prec_interp.tolist(),
             'ap': np.mean(prec_interp),
             'tp': int(tp_count),
+            'f1': [max_f1_score, max_f1_score_threshold],
             'fn': int(fn_count),
             'prob_fn': prob_fn,
             'prob_fn_bound': prob_fn_bound
