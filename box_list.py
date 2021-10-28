@@ -12,7 +12,7 @@ class BoxInfo():
     @staticmethod
     def keys():
         return [
-            'ignored', 'bg',
+            'ignored', 'bg', 'duplicated',
             'localized', 'loc_score',
             'classified', 'gt_label',
             'pred_label', 'pred_score',
@@ -60,6 +60,10 @@ class BoxList():
         # does not match any GT/pred
         self.bg = np.zeros(n_boxes, dtype=bool)
 
+        # This is an indicator list that determines if the box
+        # is a duplicate of an existing TP
+        self.duplicated = np.zeros(n_boxes, dtype=bool)
+
         # This is an indicator list that determines if the box is
         #   * Correctly localized
         #   * Mislocalized
@@ -83,11 +87,11 @@ class BoxList():
 
         # self.data = np.full(n_boxes, None, dtype=object)
         self.data = [None] * n_boxes
-    
+
     @staticmethod
     def keys():
         return [
-            'ignored', 'bg',
+            'ignored', 'bg', 'duplicated',
             'localized', 'loc_scores',
             'classified', 'gt_labels',
             'pred_labels', 'pred_scores',
